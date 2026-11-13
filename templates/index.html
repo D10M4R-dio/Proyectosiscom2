@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telemetría IoT en la Nube | Sistemas de Comunicación II (2026-II)</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">SC2</div>
+            <div class="brand-text">
+                <h1>Sistema de Monitoreo IoT en Tiempo Real</h1>
+                <p>Sistemas de Comunicación II • Semestre 2026-II • Nodo Sensor ESP32 / DHT22</p>
+            </div>
+        </div>
+
+        <div class="topbar-actions">
+            <div id="sseStatusPill" class="connection-pill">
+                <span class="pulse-dot"></span>
+                <span id="sseStatusText">Stream SSE Activo</span>
+            </div>
+
+            <select id="deviceFilter" class="select-input" title="Filtrar por nodo sensor">
+                <option value="ALL">Todos los Nodos Sensores</option>
+                <option value="ESP32-NODO-01">ESP32-NODO-01</option>
+            </select>
+
+            <button id="btnAutoSim" class="btn btn-success" onclick="toggleWebAutoSim()">
+                ▶ Auto-Simulador Web (3s)
+            </button>
+
+            <a href="/api/export/csv" class="btn" title="Descargar historial en CSV">
+                ⬇ Exportar CSV
+            </a>
+
+            <a href="/reporte" class="btn btn-primary" target="_blank">
+                📄 Ver Reporte Técnico (Moodle)
+            </a>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Banner de Alerta Dinámico -->
+        <div id="alertBanner" class="alert-banner">
+            <div>
+                <strong id="alertTitle">Estado del Sistema:</strong>
+                <span id="alertMessage">Monitoreando variables ambientales...</span>
+            </div>
+            <span id="alertTime" style="font-size: 0.78rem; opacity: 0.85;"></span>
+        </div>
+
+        <!-- Tarjetas de Indicadores Principales (KPIs) -->
+        <section class="kpi-grid">
+            <!-- Temperatura -->
+            <div class="kpi-card temp">
+                <div class="kpi-header">
+                    <span class="kpi-title">Temperatura Ambiente</span>
+                    <span id="badgeTemp" class="kpi-badge">DHT22</span>
+                </div>
+                <div class="kpi-value-row">
+                    <span id="valTemp" class="kpi-value">--.-</span>
+                    <span class="kpi-unit">°C</span>
+                </div>
+                <div class="kpi-meter">
+                    <div id="meterTemp" class="kpi-meter-fill" style="width: 50%; background: linear-gradient(90deg, #f97316, #ef4444);"></div>
+                </div>
+                <div class="kpi-footer">
+                    <span>Mín: <strong id="minTemp">--</strong>°C</span>
+                    <span>Prom: <strong id="avgTemp">--</strong>°C</span>
+                    <span>Máx: <strong id="maxTemp">--</strong>°C</span>
+                </div>
+            </div>
+
+            <!-- Humedad Relativa -->
+            <div class="kpi-card hum">
+                <div class="kpi-header">
+                    <span class="kpi-title">Humedad Relativa</span>
+                    <span id="badgeHum" class="kpi-badge">HR %</span>
+                </div>
+                <div class="kpi-value-row">
+                    <span id="valHum" class="kpi-value">--.-</span>
+                    <span class="kpi-unit">%</span>
+                </div>
+                <div class="kpi-meter">
+                    <div id="meterHum" class="kpi-meter-fill" style="width: 55%; background: linear-gradient(90deg, #06b6d4, #3b82f6);"></div>
+                </div>
+                <div class="kpi-footer">
+                    <span>Mín: <strong id="minHum">--</strong>%</span>
+                    <span>Prom: <strong id="avgHum">--</strong>%</span>
+                    <span>Máx: <strong id="maxHum">--</strong>%</span>
+                </div>
+            </div>
+
+            <!-- Índice de Calor & Punto de Rocío -->
+            <div class="kpi-card hi">
+                <div class="kpi-header">
+                    <span class="kpi-title">Sensación Térmica (HI)</span>
+                    <span class="kpi-badge">NOAA</span>
+                </div>
+                <div class="kpi-value-row">
+                    <span id="valHI" class="kpi-value">--.-</span>
+                    <span class="kpi-unit">°C</span>
+                </div>
+                <div class="kpi-meter">
+                    <div id="meterHI" class="kpi-meter-fill" style="width: 50%; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
+                </div>
+                <div class="kpi-footer">
+                    <span>Punto de Rocío: <strong id="valDP">--.-</strong> °C</span>
+                    <span>Prom HI: <strong id="avgHI">--</strong> °C</span>
+                </div>
+            </div>
+
+            <!-- Potencia de Señal Inalámbrica RSSI -->
+            <div class="kpi-card rssi">
+                <div class="kpi-header">
+                    <span class="kpi-title">Enlace Radio Wi-Fi (RSSI)</span>
+                    <span id="badgeRSSI" class="kpi-badge">802.11 b/g/n</span>
+                </div>
+                <div class="kpi-value-row">
+                    <span id="valRSSI" class="kpi-value">--</span>
+                    <span class="kpi-unit">dBm</span>
+                </div>
+                <div class="kpi-meter">
+                    <div id="meterRSSI" class="kpi-meter-fill" style="width: 75%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+                </div>
+                <div class="kpi-footer">
+                    <span>Alimentación: <strong id="valBatt">3.32</strong> V</span>
+                    <span>Prom: <strong id="avgRSSI">--</strong> dBm</span>
+                </div>
+            </div>
+
+            <!-- Telemetría de Red & Estado -->
+            <div class="kpi-card net">
+                <div class="kpi-header">
+                    <span class="kpi-title">Tráfico & Nodo Remoto</span>
+                    <span id="valStatusBadge" class="status-pill status-NORMAL">NORMAL</span>
+                </div>
+                <div class="kpi-value-row">
+                    <span id="valPackets" class="kpi-value">0</span>
+                    <span class="kpi-unit">tramas</span>
+                </div>
+                <div class="kpi-footer" style="flex-direction: column; gap: 0.25rem;">
+                    <span>Nodo: <strong id="valDevice">ESP32-NODO-01</strong></span>
+                    <span>IP Cliente: <strong id="valClientIP">127.0.0.1</strong></span>
+                    <span>Última trama: <strong id="valLastSeen">--:--:--</strong></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Gráficas en Tiempo Real -->
+        <section class="charts-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        📈 Serie Temporal en Tiempo Real: Temperatura (°C) vs Humedad Relativa (%)
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <label for="sampleLimit" style="font-size: 0.78rem; color: var(--text-secondary);">Ventana:</label>
+                        <select id="sampleLimit" class="select-input" onchange="refreshAllData()">
+                            <option value="25">Últimas 25 muestras</option>
+                            <option value="50" selected>Últimas 50 muestras</option>
+                            <option value="100">Últimas 100 muestras</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="mainTelemetryChart"></canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        📡 Índice de Calor (°C), Punto de Rocío (°C) y Nivel RSSI
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="secondaryChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Laboratorio de Transmisión & Inspector de Protocolo HTTP/JSON -->
+        <section class="lab-grid">
+            <!-- Panel de Inyección / Simulación de Tramas Sensor -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        🎛️ Transmisor de Prueba y Configuración de Umbrales
+                    </div>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Emulación de Nodo Sensor HTTP POST</span>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>ID del Dispositivo</label>
+                        <input type="text" id="simDevice" class="text-input" value="ESP32-NODO-01">
+                    </div>
+                    <div class="form-group">
+                        <label>Temperatura (°C)</label>
+                        <input type="number" id="simTemp" class="text-input" step="0.1" value="26.4">
+                    </div>
+                    <div class="form-group">
+                        <label>Humedad (%)</label>
+                        <input type="number" id="simHum" class="text-input" step="0.5" value="58.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Señal Wi-Fi (dBm)</label>
+                        <input type="number" id="simRSSI" class="text-input" step="1" value="-56">
+                    </div>
+                </div>
+
+                <div class="preset-row">
+                    <button class="btn btn-primary" onclick="sendManualReading()">
+                        📡 Transmitir Trama Ahora
+                    </button>
+                    <button class="btn btn-success" onclick="sendPreset(25.2, 56.0, -54)">
+                        ✓ Escenario Nominal (25.2°C)
+                    </button>
+                    <button class="btn btn-warning" onclick="sendPreset(32.4, 78.0, -67)">
+                        ⚠ Escenario Alerta (32.4°C)
+                    </button>
+                    <button class="btn btn-danger" onclick="sendPreset(37.6, 88.5, -79)">
+                        🔥 Escenario Crítico (37.6°C)
+                    </button>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 1.1rem 0;">
+
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                    <div style="font-size: 0.78rem; color: var(--text-secondary);">
+                        <strong>Umbrales Activos:</strong>
+                        Alerta Temp: <span id="lblWarnTemp">30.0</span>°C |
+                        Crítico Temp: <span id="lblCritTemp">35.0</span>°C |
+                        Alerta Hum: <span id="lblWarnHum">75.0</span>%
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn" onclick="seedDemoData()">+ Poblar 15 Muestras</button>
+                        <button class="btn btn-danger" onclick="clearAllReadings()">🗑 Limpiar BD</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inspector de Protocolo de Comunicación (Capa de Aplicación HTTP/JSON) -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        🔍 Inspector de Trama de Comunicación (HTTP POST / JSON)
+                    </div>
+                    <span id="inspectorLatency" class="kpi-badge">Latencia: -- ms</span>
+                </div>
+                <div id="protocolInspector" class="code-box">POST /api/readings HTTP/1.1
+Host: &lt;IP_PUBLICA_SERVIDOR&gt;
+Content-Type: application/json
+User-Agent: ESP32-HTTPClient/2.0
+
+{
+  "device_id": "ESP32-NODO-01",
+  "location": "Laboratorio Comunicaciones II",
+  "temperature": 25.4,
+  "humidity": 58.0,
+  "rssi": -56,
+  "battery_v": 3.32
+}</div>
+            </div>
+        </section>
+
+        <!-- Tabla de Registros Históricos en Vivo -->
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    📋 Registro Histórico de Telemetría Recibida (SQLite)
+                </div>
+                <span style="font-size: 0.78rem; color: var(--text-secondary);">
+                    Actualización instantánea vía Server-Sent Events (SSE)
+                </span>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th># ID</th>
+                            <th>Fecha / Hora</th>
+                            <th>Nodo Sensor</th>
+                            <th>IP Origen</th>
+                            <th>Temperatura</th>
+                            <th>Humedad Rel.</th>
+                            <th>Índice Calor</th>
+                            <th>Punto Rocío</th>
+                            <th>RSSI Wi-Fi</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="readingsTableBody">
+                        <tr>
+                            <td colspan="10" style="text-align: center; color: var(--text-secondary);">
+                                Cargando registros de telemetría...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        Proyecto Final Sistemas de Comunicación II • Semestre 2026-II • Servidor Web de Telemetría IoT desplegable en IP Pública (Ubuntu / Nginx / Gunicorn / Flask)
+    </footer>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

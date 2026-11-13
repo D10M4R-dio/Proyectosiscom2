@@ -1,0 +1,11 @@
+services:
+  siscom-web:
+    build: .
+    container_name: siscom2-monitor
+    restart: always
+    ports:
+      - "80:5000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=5000
