@@ -31,7 +31,7 @@ const char* WIFI_SSID     = "TU_RED_WIFI";
 const char* WIFI_PASSWORD = "TU_PASSWORD_WIFI";
 
 // Dirección IP Pública del Servidor Virtual (Azure VM) en la nube
-const char* SERVER_URL    = "http://4.205.51.40/api/readings";
+const char* SERVER_URL    = "http://57.156.57.129/api/readings";
 
 // Identificador único del nodo sensor y su ubicación
 const char* DEVICE_ID     = "ESP32-NODO-01";

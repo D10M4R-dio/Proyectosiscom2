@@ -10,7 +10,7 @@
   * **Integrante 1:** `[Nombre Completo]` — Código: `[Código]`
   * **Integrante 2:** `[Nombre Completo]` — Código: `[Código]`
   * **Integrante 3:** `[Nombre Completo]` — Código: `[Código]`
-* **Dirección IP Pública del Servidor Web (Microsoft Azure):** `http://4.205.51.40/`
+* **Dirección IP Pública del Servidor Web (Microsoft Azure):** `http://57.156.57.129/`
 * **Repositorio GitHub del Proyecto:** `https://github.com/D10M4R-dio/Proyectosiscom2`
 * **Fecha de Entrega del Reporte (Moodle):** Viernes 20 de noviembre de 2026 (antes de las 2:00 p. m.)
 * **Fecha de Sustentación y Demostración:** Sábado 21 de noviembre de 2026
@@ -80,14 +80,15 @@ Las lecturas se empaquetan en tramas **JSON** y se transmiten mediante el protoc
 ### Paso 1: Despliegue del Servidor Virtual en la Nube — Microsoft Azure (Requerimiento 1 y 4)
 
 1. Se ingresó al portal de **Microsoft Azure** bajo la suscripción **Azure for Students**.
-2. Se creó una máquina virtual llamada **`vm-siscom2`** dentro del grupo de recursos `rg-siscom2` con las siguientes características:
+2. Se creó una máquina virtual llamada **`vg-siscom2final`** dentro del grupo de recursos `rg-siscom2final` (Región: **Chile Central**) con las siguientes características:
    * **Imagen de Sistema Operativo:** Ubuntu Server 24.04 LTS (x64 Gen2).
    * **Tamaño de la Instancia:** `Standard_B2ats_v2` (2 vCPUs, 1 GiB RAM).
-   * **Red e IP Pública:** Asignación de **Dirección IPv4 Pública `4.205.51.40`** (`vm-siscom2-ip`).
+   * **Red e IP Pública:** Asignación de **Dirección IPv4 Pública `57.156.57.129`** (`vg-siscom2final-ip`).
    * **Grupo de Seguridad de Red (NSG / Firewall de Azure):** Se habilitaron las reglas de entrada (*Inbound security rules*) para:
      * `TCP 22` (Administración remota por SSH).
-     * `TCP 80` (Tráfico Web HTTP sobre la IP pública `4.205.51.40`).
-3. Se verificó la administración remota del servidor virtual mediante **SSH** (`ssh azureuser@4.205.51.40`) y mediante **Azure Run Command (`RunShellScript`)**.
+     * `TCP 80` (Tráfico Web HTTP sobre la IP pública `57.156.57.129`).
+     * `TCP 443` (Tráfico Seguro HTTPS con certificado SSL).
+3. Se verificó la administración remota del servidor virtual mediante **SSH** (`ssh azureuser@57.156.57.129`) y mediante **Azure Run Command (`RunShellScript`)**.
 
 ---
 
