@@ -30,10 +30,8 @@
 const char* WIFI_SSID     = "TU_RED_WIFI";
 const char* WIFI_PASSWORD = "TU_PASSWORD_WIFI";
 
-// Reemplazar con la Dirección IP Pública del Servidor Virtual (VPS) en la nube
-// Ejemplo en puerto 80 (Nginx): "http://143.198.XXX.YYY/api/readings"
-// Ejemplo en prueba local:      "http://192.168.1.50:5000/api/readings"
-const char* SERVER_URL    = "http://IP_PUBLICA_DEL_SERVIDOR/api/readings";
+// Dirección IP Pública del Servidor Virtual (Azure VM) en la nube
+const char* SERVER_URL    = "http://4.205.51.40/api/readings";
 
 // Identificador único del nodo sensor y su ubicación
 const char* DEVICE_ID     = "ESP32-NODO-01";

@@ -10,7 +10,8 @@
   * **Integrante 1:** `[Nombre Completo]` — Código: `[Código]`
   * **Integrante 2:** `[Nombre Completo]` — Código: `[Código]`
   * **Integrante 3:** `[Nombre Completo]` — Código: `[Código]`
-* **Dirección IP Pública del Servidor Web:** `http://<IP_PUBLICA_DEL_VPS>/`
+* **Dirección IP Pública del Servidor Web (Microsoft Azure):** `http://4.205.51.40/`
+* **Repositorio GitHub del Proyecto:** `https://github.com/D10M4R-dio/Proyectosiscom2`
 * **Fecha de Entrega del Reporte (Moodle):** Viernes 20 de noviembre de 2026 (antes de las 2:00 p. m.)
 * **Fecha de Sustentación y Demostración:** Sábado 21 de noviembre de 2026
 
@@ -76,20 +77,17 @@ Las lecturas se empaquetan en tramas **JSON** y se transmiten mediante el protoc
 
 ## 3. Paso a Paso Ejecutado para la Implementación
 
-### Paso 1: Despliegue del Servidor Virtual en la Nube (Requerimiento 1 y 4)
+### Paso 1: Despliegue del Servidor Virtual en la Nube — Microsoft Azure (Requerimiento 1 y 4)
 
-1. Se ingresó a la consola del proveedor de nube (**DigitalOcean / Google Cloud Platform / Microsoft Azure / AWS**).
-2. Se creó una instancia de máquina virtual (**Droplet / Compute Engine VM**) con las siguientes características:
-   * **Imagen de Sistema Operativo:** Ubuntu 22.04 LTS o 24.04 LTS (x64).
-   * **Plan de Recursos:** 1 vCPU, 1 GB de memoria RAM, 25 GB de almacenamiento SSD.
-   * **Red:** Asignación de **Dirección IPv4 Pública estática**.
-   * **Reglas de Firewall de Nube:** Se habilitaron las reglas de entrada (*Inbound Rules*) para:
+1. Se ingresó al portal de **Microsoft Azure** bajo la suscripción **Azure for Students**.
+2. Se creó una máquina virtual llamada **`vm-siscom2`** dentro del grupo de recursos `rg-siscom2` con las siguientes características:
+   * **Imagen de Sistema Operativo:** Ubuntu Server 24.04 LTS (x64 Gen2).
+   * **Tamaño de la Instancia:** `Standard_B2ats_v2` (2 vCPUs, 1 GiB RAM).
+   * **Red e IP Pública:** Asignación de **Dirección IPv4 Pública `4.205.51.40`** (`vm-siscom2-ip`).
+   * **Grupo de Seguridad de Red (NSG / Firewall de Azure):** Se habilitaron las reglas de entrada (*Inbound security rules*) para:
      * `TCP 22` (Administración remota por SSH).
-     * `TCP 80` (Tráfico Web HTTP sobre la IP pública).
-3. Se verificó conectividad hacia la dirección IP pública desde la terminal local:
-   ```bash
-   ssh root@<IP_PUBLICA_DEL_SERVIDOR>
-   ```
+     * `TCP 80` (Tráfico Web HTTP sobre la IP pública `4.205.51.40`).
+3. Se verificó la administración remota del servidor virtual mediante **SSH** (`ssh azureuser@4.205.51.40`) y mediante **Azure Run Command (`RunShellScript`)**.
 
 ---
 
