@@ -4,12 +4,10 @@ import json
 import math
 import os
 import queue
-import random
 import socket
 import sqlite3
 import threading
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from flask import Flask, Response, jsonify, render_template, request
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -19,7 +17,7 @@ DB_PATH = os.path.join(DATA_DIR, "telemetry.db")
 
 app = Flask(__name__)
 
-# Clave API opcional (si se define en variable de entorno, se valida; por defecto acepta "SISCOM2-2026" o sin clave para facilitar pruebas de laboratorio)
+# Clave API opcional (si se define SISCOM_API_KEY, se valida mediante cabecera X-API-Key o campo api_key)
 EXPECTED_API_KEY = os.environ.get("SISCOM_API_KEY", "")
 
 # Suscriptores de Server-Sent Events (SSE) para tiempo real
@@ -121,13 +119,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS sensor_readings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             device_id TEXT NOT NULL,
-            location TEXT NOT NULL DEFAULT 'Laboratorio SisCom II',
+            location TEXT NOT NULL DEFAULT 'No especificada',
             temperature REAL NOT NULL,
             humidity REAL NOT NULL,
             heat_index REAL NOT NULL,
             dew_point REAL NOT NULL,
-            rssi INTEGER NOT NULL DEFAULT -60,
-            battery_v REAL NOT NULL DEFAULT 3.3,
+            rssi INTEGER,
+            battery_v REAL,
             status TEXT NOT NULL DEFAULT 'NORMAL',
             status_detail TEXT NOT NULL DEFAULT '',
             client_ip TEXT NOT NULL DEFAULT '127.0.0.1',
@@ -155,23 +153,14 @@ def init_db():
         )
         """
     )
-    # Inicializar umbrales si no existen
     cur.execute("SELECT value FROM system_config WHERE key = 'thresholds'")
-    row = cur.fetchone()
-    if not row:
+    if not cur.fetchone():
         cur.execute(
             "INSERT INTO system_config (key, value) VALUES ('thresholds', ?)",
             (json.dumps(DEFAULT_THRESHOLDS),),
         )
-
-    # Si la base de datos está vacía, sembrar lecturas iniciales para visualización inmediata
-    cur.execute("SELECT COUNT(*) as total FROM sensor_readings")
-    count = cur.fetchone()["total"]
     conn.commit()
     conn.close()
-
-    if count == 0:
-        seed_sample_readings(count=25)
 
 
 def get_thresholds() -> dict:
@@ -193,7 +182,20 @@ def save_thresholds(new_thresholds: dict) -> dict:
     merged = get_thresholds()
     for k in DEFAULT_THRESHOLDS:
         if k in new_thresholds:
-            merged[k] = float(new_thresholds[k])
+            val = float(new_thresholds[k])
+            if not math.isfinite(val):
+                raise ValueError(f"El umbral '{k}' debe ser un número finito.")
+            merged[k] = round(val, 2)
+
+    if not (-50.0 <= merged["temp_min_warn"] < merged["temp_max_warn"] < merged["temp_max_crit"] <= 100.0):
+        raise ValueError(
+            "Los umbrales de temperatura deben cumplir: mín. advertencia < máx. advertencia < máx. crítico (entre -50 y 100 °C)."
+        )
+    if not (0.0 <= merged["hum_min_warn"] < merged["hum_max_warn"] < merged["hum_max_crit"] <= 100.0):
+        raise ValueError(
+            "Los umbrales de humedad deben cumplir: mín. advertencia < máx. advertencia < máx. crítico (entre 0 y 100 %)."
+        )
+
     conn = get_db_connection()
     conn.execute(
         "INSERT OR REPLACE INTO system_config (key, value) VALUES ('thresholds', ?)",
@@ -222,8 +224,8 @@ def insert_reading(
     location: str,
     temperature: float,
     humidity: float,
-    rssi: int = -58,
-    battery_v: float = 3.3,
+    rssi: int | None = None,
+    battery_v: float | None = None,
     client_ip: str = "127.0.0.1",
     timestamp_iso: str | None = None,
 ) -> dict:
@@ -232,6 +234,8 @@ def insert_reading(
     dew_point = compute_dew_point(temperature, humidity)
     status, status_detail = evaluate_status(temperature, humidity, thresholds)
     created_at = timestamp_iso or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    rssi_val = int(rssi) if rssi is not None else None
+    batt_val = round(battery_v, 2) if battery_v is not None else None
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -250,8 +254,8 @@ def insert_reading(
             round(humidity, 2),
             heat_index,
             dew_point,
-            int(rssi),
-            round(battery_v, 2),
+            rssi_val,
+            batt_val,
             status,
             status_detail,
             client_ip,
@@ -270,8 +274,8 @@ def insert_reading(
         "humidity": round(humidity, 2),
         "heat_index": heat_index,
         "dew_point": dew_point,
-        "rssi": int(rssi),
-        "battery_v": round(battery_v, 2),
+        "rssi": rssi_val,
+        "battery_v": batt_val,
         "status": status,
         "status_detail": status_detail,
         "client_ip": client_ip,
@@ -279,28 +283,6 @@ def insert_reading(
     }
     broadcast_sse("new_reading", record)
     return record
-
-
-def seed_sample_readings(count: int = 25, device_id: str = "ESP32-NODO-01"):
-    now = datetime.now()
-    base_temp = 25.4
-    base_hum = 58.0
-    for i in range(count, 0, -1):
-        ts = (now - timedelta(seconds=i * 5)).strftime("%Y-%m-%d %H:%M:%S")
-        wave = math.sin(i * 0.35)
-        temp = base_temp + wave * 2.2 + random.uniform(-0.35, 0.35)
-        hum = base_hum - wave * 5.5 + random.uniform(-1.1, 1.1)
-        rssi = int(-56 + random.randint(-8, 5))
-        insert_reading(
-            device_id=device_id,
-            location="Laboratorio Comunicaciones II - Bloque Ingenierías",
-            temperature=temp,
-            humidity=hum,
-            rssi=rssi,
-            battery_v=3.32,
-            client_ip="127.0.0.1",
-            timestamp_iso=ts,
-        )
 
 
 def get_server_network_info() -> dict:
@@ -324,11 +306,6 @@ def get_server_network_info() -> dict:
 @app.route("/")
 def index():
     return render_template("index.html")
-
-
-@app.route("/reporte")
-def reporte():
-    return render_template("reporte.html")
 
 
 @app.route("/api/readings", methods=["POST"])
@@ -371,12 +348,28 @@ def receive_reading():
             400,
         )
 
-    device_id = str(data.get("device_id", "ESP32-NODO-01")).strip()[:64]
-    location = str(
-        data.get("location", "Laboratorio Comunicaciones II - Bloque Ingenierías")
-    ).strip()[:120]
-    rssi = int(float(data.get("rssi", -58)))
-    battery_v = float(data.get("battery_v", 3.3))
+    rssi = None
+    raw_rssi = data.get("rssi")
+    if raw_rssi is not None and str(raw_rssi).strip() != "":
+        try:
+            rssi = int(float(raw_rssi))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "El campo 'rssi' debe ser numérico."}), 400
+        if not (-120 <= rssi <= 0):
+            return jsonify({"ok": False, "error": "Valor 'rssi' fuera de rango válido (-120..0 dBm)."}), 400
+
+    battery_v = None
+    raw_batt = data.get("battery_v")
+    if raw_batt is not None and str(raw_batt).strip() != "":
+        try:
+            battery_v = float(raw_batt)
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "El campo 'battery_v' debe ser numérico."}), 400
+        if not (0.0 <= battery_v <= 24.0):
+            return jsonify({"ok": False, "error": "Valor 'battery_v' fuera de rango válido (0..24 V)."}), 400
+
+    device_id = str(data.get("device_id") or "ESP32-NODO-01").strip()[:64] or "ESP32-NODO-01"
+    location = str(data.get("location") or "No especificada").strip()[:120] or "No especificada"
 
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1")
     if "," in client_ip:
@@ -396,7 +389,10 @@ def receive_reading():
 
 @app.route("/api/readings", methods=["GET"])
 def list_readings():
-    limit = min(max(int(request.args.get("limit", 60)), 1), 500)
+    try:
+        limit = min(max(int(request.args.get("limit", 60)), 1), 500)
+    except (TypeError, ValueError):
+        limit = 60
     device_id = request.args.get("device_id", "").strip()
 
     conn = get_db_connection()
@@ -510,19 +506,15 @@ def get_stats():
 def manage_thresholds():
     if request.method == "GET":
         return jsonify({"ok": True, "thresholds": get_thresholds()})
-    data = request.get_json(silent=True) or {}
-    updated = save_thresholds(data)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "Payload JSON inválido."}), 400
+    try:
+        updated = save_thresholds(data)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     broadcast_sse("thresholds_updated", updated)
     return jsonify({"ok": True, "thresholds": updated})
-
-
-@app.route("/api/seed", methods=["POST"])
-def seed_endpoint():
-    data = request.get_json(silent=True) or {}
-    count = min(max(int(data.get("count", 15)), 1), 100)
-    device_id = str(data.get("device_id", "ESP32-NODO-01"))
-    seed_sample_readings(count=count, device_id=device_id)
-    return jsonify({"ok": True, "message": f"Se generaron {count} lecturas de prueba."})
 
 
 @app.route("/api/readings", methods=["DELETE"])
@@ -572,8 +564,8 @@ def export_csv():
                 r["humidity"],
                 r["heat_index"],
                 r["dew_point"],
-                r["rssi"],
-                r["battery_v"],
+                r["rssi"] if r["rssi"] is not None else "",
+                r["battery_v"] if r["battery_v"] is not None else "",
                 r["status"],
                 r["status_detail"],
                 r["client_ip"],

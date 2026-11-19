@@ -7,10 +7,14 @@ echo   INICIANDO SERVIDOR WEB DE TELEMETRIA - SISTEMAS DE COMUNICACION II
 echo ======================================================================
 echo.
 echo   Dashboard Local : http://127.0.0.1:5000
-echo   Reporte Moodle  : http://127.0.0.1:5000/reporte
+echo   Endpoint API    : http://127.0.0.1:5000/api/readings
 echo.
 echo ======================================================================
 
 start "" "http://127.0.0.1:5000"
-".venv\Scripts\python.exe" app.py
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" app.py
+) else (
+    python app.py
+)
 pause

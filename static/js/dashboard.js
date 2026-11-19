@@ -1,10 +1,14 @@
 let mainChart = null;
 let secondaryChart = null;
 let readingsCache = [];
-let autoSimTimer = null;
-let autoSimPhase = 0;
+let thresholdsPopulated = false;
 
 document.addEventListener("DOMContentLoaded", () => {
+    const endpointEl = document.getElementById("endpointUrl");
+    if (endpointEl) {
+        endpointEl.textContent = `${window.location.origin}/api/readings`;
+    }
+
     initCharts();
     refreshAllData();
     connectSSE();
@@ -16,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initCharts() {
     if (typeof Chart === "undefined") {
-        console.warn("Chart.js no disponible en caché; continuando con telemetría tabular y KPIs.");
+        console.warn("Chart.js no disponible; continuando con telemetría tabular y KPIs.");
         return;
     }
 
@@ -167,19 +171,32 @@ async function refreshAllData() {
     }
 }
 
+function applyThresholdsToUI(thresholds, forceInputs = false) {
+    if (!thresholds) return;
+    document.getElementById("lblWarnTemp").textContent = Number(thresholds.temp_max_warn).toFixed(1);
+    document.getElementById("lblCritTemp").textContent = Number(thresholds.temp_max_crit).toFixed(1);
+    document.getElementById("lblWarnHum").textContent = Number(thresholds.hum_max_warn).toFixed(1);
+
+    if (!thresholdsPopulated || forceInputs) {
+        document.getElementById("inpTempMinWarn").value = thresholds.temp_min_warn;
+        document.getElementById("inpTempMaxWarn").value = thresholds.temp_max_warn;
+        document.getElementById("inpTempMaxCrit").value = thresholds.temp_max_crit;
+        document.getElementById("inpHumMinWarn").value = thresholds.hum_min_warn;
+        document.getElementById("inpHumMaxWarn").value = thresholds.hum_max_warn;
+        document.getElementById("inpHumMaxCrit").value = thresholds.hum_max_crit;
+        thresholdsPopulated = true;
+    }
+}
+
 function updateStatsUI(statsData) {
     const { summary, latest, devices, thresholds } = statsData;
 
-    if (thresholds) {
-        document.getElementById("lblWarnTemp").textContent = thresholds.temp_max_warn.toFixed(1);
-        document.getElementById("lblCritTemp").textContent = thresholds.temp_max_crit.toFixed(1);
-        document.getElementById("lblWarnHum").textContent = thresholds.hum_max_warn.toFixed(1);
-    }
+    applyThresholdsToUI(thresholds);
 
-    // Actualizar selector de dispositivos dinámicamente
+    // Actualizar selector de dispositivos dinámicamente con nodos reales
     const select = document.getElementById("deviceFilter");
     const currentSelection = select.value;
-    const knownDevices = new Set(["ALL", "ESP32-NODO-01"]);
+    const knownDevices = new Set(["ALL"]);
     if (devices) {
         devices.forEach((d) => knownDevices.add(d.device_id));
     }
@@ -192,7 +209,7 @@ function updateStatsUI(statsData) {
         select.appendChild(opt);
     });
 
-    if (summary && summary.total_packets > 0) {
+    if (summary && summary.total_packets > 0 && latest) {
         document.getElementById("valPackets").textContent = summary.total_packets;
         document.getElementById("minTemp").textContent = summary.min_temp ?? "--";
         document.getElementById("avgTemp").textContent = summary.avg_temp ?? "--";
@@ -204,13 +221,50 @@ function updateStatsUI(statsData) {
 
         document.getElementById("avgHI").textContent = summary.avg_hi ?? "--";
         document.getElementById("avgRSSI").textContent = summary.avg_rssi ?? "--";
-    } else {
-        document.getElementById("valPackets").textContent = "0";
-    }
 
-    if (latest) {
         applyLatestReadingToKPIs(latest);
+        updateProtocolInspector(latest);
+    } else {
+        resetDashboardToEmpty();
     }
+}
+
+function resetDashboardToEmpty() {
+    document.getElementById("valTemp").textContent = "--.-";
+    document.getElementById("valHum").textContent = "--.-";
+    document.getElementById("valHI").textContent = "--.-";
+    document.getElementById("valDP").textContent = "--.-";
+    document.getElementById("valRSSI").textContent = "--";
+    document.getElementById("valRssiQuality").textContent = "--";
+    document.getElementById("badgeRSSI").textContent = "802.11 b/g/n";
+
+    document.getElementById("minTemp").textContent = "--";
+    document.getElementById("avgTemp").textContent = "--";
+    document.getElementById("maxTemp").textContent = "--";
+    document.getElementById("minHum").textContent = "--";
+    document.getElementById("avgHum").textContent = "--";
+    document.getElementById("maxHum").textContent = "--";
+    document.getElementById("avgHI").textContent = "--";
+    document.getElementById("avgRSSI").textContent = "--";
+
+    document.getElementById("valPackets").textContent = "0";
+    document.getElementById("valDevice").textContent = "--";
+    document.getElementById("valClientIP").textContent = "--";
+    document.getElementById("valLastSeen").textContent = "--:--:--";
+
+    document.getElementById("meterTemp").style.width = "0%";
+    document.getElementById("meterHum").style.width = "0%";
+    document.getElementById("meterHI").style.width = "0%";
+    document.getElementById("meterRSSI").style.width = "0%";
+
+    const statusBadge = document.getElementById("valStatusBadge");
+    statusBadge.textContent = "SIN DATOS";
+    statusBadge.className = "status-pill status-SIN_DATOS";
+
+    document.getElementById("alertBanner").className = "alert-banner";
+    document.getElementById("inspectorMeta").textContent = "Esperando datos...";
+    document.getElementById("protocolInspector").textContent =
+        `Esperando la primera trama real del dispositivo sensor en:\nPOST ${window.location.origin}/api/readings`;
 }
 
 function applyLatestReadingToKPIs(r) {
@@ -218,31 +272,38 @@ function applyLatestReadingToKPIs(r) {
     document.getElementById("valHum").textContent = Number(r.humidity).toFixed(1);
     document.getElementById("valHI").textContent = Number(r.heat_index).toFixed(1);
     document.getElementById("valDP").textContent = Number(r.dew_point).toFixed(1);
-    document.getElementById("valRSSI").textContent = r.rssi;
-    document.getElementById("valBatt").textContent = Number(r.battery_v).toFixed(2);
     document.getElementById("valDevice").textContent = r.device_id;
-    document.getElementById("valClientIP").textContent = r.client_ip || "127.0.0.1";
+    document.getElementById("valClientIP").textContent = r.client_ip || "--";
     document.getElementById("valLastSeen").textContent = (r.created_at || "").split(" ")[1] || r.created_at;
 
-    // Barras de progreso proporcionales
     const tempPct = Math.min(100, Math.max(5, ((r.temperature - 10) / 35) * 100));
     const humPct = Math.min(100, Math.max(5, r.humidity));
     const hiPct = Math.min(100, Math.max(5, ((r.heat_index - 10) / 40) * 100));
-    const rssiPct = Math.min(100, Math.max(5, ((r.rssi + 100) / 70) * 100));
 
     document.getElementById("meterTemp").style.width = `${tempPct}%`;
     document.getElementById("meterHum").style.width = `${humPct}%`;
     document.getElementById("meterHI").style.width = `${hiPct}%`;
-    document.getElementById("meterRSSI").style.width = `${rssiPct}%`;
 
-    // Calidad de señal RSSI
     const badgeRSSI = document.getElementById("badgeRSSI");
-    if (r.rssi >= -60) badgeRSSI.textContent = "Excelente";
-    else if (r.rssi >= -70) badgeRSSI.textContent = "Buena";
-    else if (r.rssi >= -80) badgeRSSI.textContent = "Regular";
-    else badgeRSSI.textContent = "Débil";
+    const qualityEl = document.getElementById("valRssiQuality");
+    if (r.rssi !== null && r.rssi !== undefined) {
+        document.getElementById("valRSSI").textContent = r.rssi;
+        const rssiPct = Math.min(100, Math.max(5, ((r.rssi + 100) / 70) * 100));
+        document.getElementById("meterRSSI").style.width = `${rssiPct}%`;
 
-    // Estado general y banner de alerta
+        let quality = "Débil";
+        if (r.rssi >= -60) quality = "Excelente";
+        else if (r.rssi >= -70) quality = "Buena";
+        else if (r.rssi >= -80) quality = "Regular";
+        badgeRSSI.textContent = quality;
+        qualityEl.textContent = quality;
+    } else {
+        document.getElementById("valRSSI").textContent = "--";
+        document.getElementById("meterRSSI").style.width = "0%";
+        badgeRSSI.textContent = "N/D";
+        qualityEl.textContent = "N/D";
+    }
+
     const statusBadge = document.getElementById("valStatusBadge");
     statusBadge.textContent = r.status;
     statusBadge.className = `status-pill status-${r.status}`;
@@ -257,6 +318,50 @@ function applyLatestReadingToKPIs(r) {
     } else {
         banner.className = "alert-banner";
     }
+}
+
+function updateProtocolInspector(r) {
+    if (!r) return;
+    document.getElementById("inspectorMeta").textContent = `IP: ${r.client_ip || "--"} • ${r.created_at}`;
+
+    const sensorPayload = {
+        device_id: r.device_id,
+        location: r.location,
+        temperature: r.temperature,
+        humidity: r.humidity,
+    };
+    if (r.rssi !== null && r.rssi !== undefined) sensorPayload.rssi = r.rssi;
+    if (r.battery_v !== null && r.battery_v !== undefined) sensorPayload.battery_v = r.battery_v;
+
+    const serverComputed = {
+        id: r.id,
+        heat_index: r.heat_index,
+        dew_point: r.dew_point,
+        status: r.status,
+        status_detail: r.status_detail,
+        client_ip: r.client_ip,
+        created_at: r.created_at,
+    };
+
+    document.getElementById("protocolInspector").textContent =
+`POST /api/readings HTTP/1.1
+Host: ${window.location.host}
+Content-Type: application/json
+
+// --- TRAMA RECIBIDA DEL SENSOR ---
+${JSON.stringify(sensorPayload, null, 2)}
+
+// --- PROCESAMIENTO EN SERVIDOR ---
+${JSON.stringify(serverComputed, null, 2)}`;
+}
+
+function createTableCell(text, styleObj = null) {
+    const td = document.createElement("td");
+    td.textContent = text;
+    if (styleObj) {
+        Object.assign(td.style, styleObj);
+    }
+    return td;
 }
 
 function renderChartsAndTable() {
@@ -282,27 +387,58 @@ function renderChartsAndTable() {
     }
 
     const tbody = document.getElementById("readingsTableBody");
+    tbody.innerHTML = "";
+
     if (readingsCache.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--text-secondary);">No hay lecturas registradas. Envía una trama desde el transmisor o simulador.</td></tr>`;
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 10;
+        td.style.textAlign = "center";
+        td.style.color = "var(--text-secondary)";
+        td.textContent = "No hay lecturas registradas. Esperando telemetría del dispositivo sensor en POST /api/readings.";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
         return;
     }
 
-    const rowsHtml = readingsCache.slice(0, 30).map((r) => `
-        <tr>
-            <td><strong>#${r.id}</strong></td>
-            <td>${r.created_at}</td>
-            <td><code>${r.device_id}</code></td>
-            <td>${r.client_ip || "127.0.0.1"}</td>
-            <td style="color: #fb923c; font-weight: 700;">${Number(r.temperature).toFixed(2)} °C</td>
-            <td style="color: #38bdf8; font-weight: 700;">${Number(r.humidity).toFixed(2)} %</td>
-            <td>${Number(r.heat_index).toFixed(2)} °C</td>
-            <td>${Number(r.dew_point).toFixed(2)} °C</td>
-            <td>${r.rssi} dBm</td>
-            <td><span class="status-pill status-${r.status}" title="${r.status_detail}">${r.status}</span></td>
-        </tr>
-    `).join("");
+    const fragment = document.createDocumentFragment();
+    readingsCache.slice(0, 30).forEach((r) => {
+        const tr = document.createElement("tr");
 
-    tbody.innerHTML = rowsHtml;
+        const tdId = document.createElement("td");
+        const strongId = document.createElement("strong");
+        strongId.textContent = `#${r.id}`;
+        tdId.appendChild(strongId);
+        tr.appendChild(tdId);
+
+        tr.appendChild(createTableCell(r.created_at || ""));
+
+        const tdDev = document.createElement("td");
+        const codeDev = document.createElement("code");
+        codeDev.textContent = r.device_id;
+        tdDev.appendChild(codeDev);
+        tr.appendChild(tdDev);
+
+        tr.appendChild(createTableCell(r.client_ip || "--"));
+        tr.appendChild(createTableCell(`${Number(r.temperature).toFixed(2)} °C`, { color: "#fb923c", fontWeight: "700" }));
+        tr.appendChild(createTableCell(`${Number(r.humidity).toFixed(2)} %`, { color: "#38bdf8", fontWeight: "700" }));
+        tr.appendChild(createTableCell(`${Number(r.heat_index).toFixed(2)} °C`));
+        tr.appendChild(createTableCell(`${Number(r.dew_point).toFixed(2)} °C`));
+        tr.appendChild(createTableCell(r.rssi !== null && r.rssi !== undefined ? `${r.rssi} dBm` : "--"));
+
+        const tdStatus = document.createElement("td");
+        const pill = document.createElement("span");
+        const safeStatus = ["NORMAL", "ALERTA", "CRITICO"].includes(r.status) ? r.status : "NORMAL";
+        pill.className = `status-pill status-${safeStatus}`;
+        pill.title = r.status_detail || "";
+        pill.textContent = safeStatus;
+        tdStatus.appendChild(pill);
+        tr.appendChild(tdStatus);
+
+        fragment.appendChild(tr);
+    });
+
+    tbody.appendChild(fragment);
 }
 
 function connectSSE() {
@@ -311,10 +447,13 @@ function connectSSE() {
 
     const evtSource = new EventSource("/api/stream");
 
-    evtSource.addEventListener("connected", () => {
+    const markConnected = () => {
         pill.classList.remove("disconnected");
         text.textContent = "Stream SSE Activo";
-    });
+    };
+
+    evtSource.onopen = markConnected;
+    evtSource.addEventListener("connected", markConnected);
 
     evtSource.addEventListener("new_reading", (event) => {
         try {
@@ -327,8 +466,8 @@ function connectSSE() {
                     readingsCache.pop();
                 }
                 applyLatestReadingToKPIs(record);
+                updateProtocolInspector(record);
                 renderChartsAndTable();
-                // Actualizar estadísticas agregadas
                 fetch(`/api/stats?device_id=${encodeURIComponent(selectedDevice)}`)
                     .then((r) => r.json())
                     .then((statsData) => {
@@ -341,9 +480,19 @@ function connectSSE() {
         }
     });
 
+    evtSource.addEventListener("thresholds_updated", (event) => {
+        try {
+            const updated = JSON.parse(event.data);
+            applyThresholdsToUI(updated, true);
+        } catch (e) {
+            console.error("Error procesando actualización de umbrales:", e);
+        }
+    });
+
     evtSource.addEventListener("cleared", () => {
         readingsCache = [];
         renderChartsAndTable();
+        resetDashboardToEmpty();
         refreshAllData();
     });
 
@@ -353,100 +502,61 @@ function connectSSE() {
     };
 }
 
-async function transmitReadingPayload(payload) {
-    const t0 = performance.now();
+async function saveThresholds(event) {
+    event.preventDefault();
+    const feedback = document.getElementById("thresholdsFeedback");
+    feedback.className = "feedback-msg";
+    feedback.textContent = "Guardando...";
+
+    const payload = {
+        temp_min_warn: parseFloat(document.getElementById("inpTempMinWarn").value),
+        temp_max_warn: parseFloat(document.getElementById("inpTempMaxWarn").value),
+        temp_max_crit: parseFloat(document.getElementById("inpTempMaxCrit").value),
+        hum_min_warn: parseFloat(document.getElementById("inpHumMinWarn").value),
+        hum_max_warn: parseFloat(document.getElementById("inpHumMaxWarn").value),
+        hum_max_crit: parseFloat(document.getElementById("inpHumMaxCrit").value),
+    };
+
     try {
-        const res = await fetch("/api/readings", {
+        const res = await fetch("/api/thresholds", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
-        const elapsed = Math.round(performance.now() - t0);
         const data = await res.json();
-
-        document.getElementById("inspectorLatency").textContent = `Latencia: ${elapsed} ms (HTTP ${res.status})`;
-        document.getElementById("protocolInspector").textContent =
-`POST /api/readings HTTP/1.1
-Host: ${window.location.host}
-Content-Type: application/json
-
-// --- TRAMA JSON ENVIADA POR EL SENSOR ---
-${JSON.stringify(payload, null, 2)}
-
-// --- RESPUESTA DEL SERVIDOR EN LA NUBE ---
-${JSON.stringify(data, null, 2)}`;
+        if (!res.ok || !data.ok) {
+            feedback.className = "feedback-msg error";
+            feedback.textContent = data.error || "Error al guardar umbrales.";
+            return;
+        }
+        applyThresholdsToUI(data.thresholds, true);
+        feedback.className = "feedback-msg success";
+        feedback.textContent = "✓ Umbrales guardados.";
+        setTimeout(() => {
+            if (feedback.textContent === "✓ Umbrales guardados.") {
+                feedback.textContent = "";
+            }
+        }, 3500);
     } catch (err) {
-        console.error("Error transmitiendo lectura:", err);
+        feedback.className = "feedback-msg error";
+        feedback.textContent = "Error de red al guardar umbrales.";
     }
 }
 
-function sendManualReading() {
-    const device_id = document.getElementById("simDevice").value.trim() || "ESP32-NODO-01";
-    const temperature = parseFloat(document.getElementById("simTemp").value) || 25.5;
-    const humidity = parseFloat(document.getElementById("simHum").value) || 58.0;
-    const rssi = parseInt(document.getElementById("simRSSI").value, 10) || -58;
-
-    transmitReadingPayload({
-        device_id,
-        location: "Laboratorio Comunicaciones II",
-        temperature,
-        humidity,
-        rssi,
-        battery_v: 3.32,
-    });
-}
-
-function sendPreset(temp, hum, rssi) {
-    document.getElementById("simTemp").value = temp;
-    document.getElementById("simHum").value = hum;
-    document.getElementById("simRSSI").value = rssi;
-    sendManualReading();
-}
-
-function toggleWebAutoSim() {
-    const btn = document.getElementById("btnAutoSim");
-    if (autoSimTimer) {
-        clearInterval(autoSimTimer);
-        autoSimTimer = null;
-        btn.classList.remove("active");
-        btn.textContent = "▶ Auto-Simulador Web (3s)";
-        return;
+async function copyEndpointUrl() {
+    const url = `${window.location.origin}/api/readings`;
+    const btn = document.getElementById("btnCopyEndpoint");
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+        }
+        btn.textContent = "✓ Copiado";
+        setTimeout(() => {
+            btn.textContent = "📋 Copiar URL";
+        }, 2000);
+    } catch {
+        btn.textContent = "URL visible arriba";
     }
-
-    btn.classList.add("active");
-    btn.textContent = "⏹ Detener Auto-Simulador (Activo)";
-
-    const emitStep = () => {
-        autoSimPhase += 0.35;
-        const temp = +(25.8 + Math.sin(autoSimPhase) * 2.8 + (Math.random() - 0.5) * 0.6).toFixed(2);
-        const hum = +(58.0 - Math.sin(autoSimPhase) * 6.5 + (Math.random() - 0.5) * 1.4).toFixed(2);
-        const rssi = Math.round(-56 + (Math.random() - 0.5) * 10);
-
-        document.getElementById("simTemp").value = temp;
-        document.getElementById("simHum").value = hum;
-        document.getElementById("simRSSI").value = rssi;
-
-        transmitReadingPayload({
-            device_id: document.getElementById("simDevice").value.trim() || "ESP32-NODO-01",
-            location: "Laboratorio Comunicaciones II",
-            temperature: temp,
-            humidity: hum,
-            rssi: rssi,
-            battery_v: +(3.30 + Math.random() * 0.05).toFixed(2),
-        });
-    };
-
-    emitStep();
-    autoSimTimer = setInterval(emitStep, 3000);
-}
-
-async function seedDemoData() {
-    await fetch("/api/seed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: 15, device_id: "ESP32-NODO-01" }),
-    });
-    refreshAllData();
 }
 
 async function clearAllReadings() {

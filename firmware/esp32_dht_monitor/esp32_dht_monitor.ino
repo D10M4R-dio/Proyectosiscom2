@@ -2,7 +2,7 @@
  * ============================================================================
  * PROYECTO FINAL - SISTEMAS DE COMUNICACIÓN II (SEMESTRE 2026-II)
  * Nodo Sensor IoT (ESP32 / ESP8266) con Sensor DHT22 / DHT11
- * Transmisión de Telemetría vía HTTP POST hacia Servidor Cloud con IP Pública
+ * Transmisión de Telemetría Real vía HTTP POST hacia Servidor Cloud con IP Pública
  * ============================================================================
  *
  * Librerías requeridas en Arduino IDE:
@@ -40,10 +40,6 @@ const char* LOCATION      = "Laboratorio Comunicaciones II";
 // ==================== CONFIGURACIÓN DEL SENSOR DHT =======================
 #define DHTPIN  4         // Pin digital GPIO 4 conectado al pin DATA del DHT
 #define DHTTYPE DHT22     // Cambiar a DHT11 si se utiliza el sensor azul DHT11
-
-// Si el sensor físico se desconecta accidentalmente durante la sustentación,
-// habilitar FALLBACK_ON_SENSOR_ERROR permite enviar lecturas de respaldo
-#define FALLBACK_ON_SENSOR_ERROR true
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -105,24 +101,17 @@ void loop() {
     }
   }
 
-  // 1. Leer variables del sensor DHT
+  // 1. Leer variables reales del sensor físico DHT
   float humedad     = dht.readHumidity();
   float temperatura = dht.readTemperature(); // Grados Celsius (°C)
 
   if (isnan(humedad) || isnan(temperatura)) {
-    Serial.println("[Sensor] Advertencia: Fallo al leer el sensor DHT.");
-    if (FALLBACK_ON_SENSOR_ERROR) {
-      temperatura = 25.5 + (random(-15, 20) / 10.0);
-      humedad     = 58.0 + (random(-40, 40) / 10.0);
-      Serial.println("[Sensor] Usando lectura de respaldo para mantener telemetria activa.");
-    } else {
-      return;
-    }
+    Serial.println("[Sensor] Error al leer el sensor DHT. Verifica la conexion fisica en GPIO 4.");
+    return;
   }
 
-  // 2. Medir potencia de señal inalámbrica (RSSI en dBm)
+  // 2. Medir potencia real de señal inalámbrica (RSSI en dBm)
   long rssi = WiFi.RSSI();
-  float battery_v = 3.32;
 
   // 3. Construir trama JSON (Capa de Aplicación)
   String jsonPayload = "{";
@@ -130,8 +119,7 @@ void loop() {
   jsonPayload += "\"location\":\"" + String(LOCATION) + "\",";
   jsonPayload += "\"temperature\":" + String(temperatura, 2) + ",";
   jsonPayload += "\"humidity\":" + String(humedad, 2) + ",";
-  jsonPayload += "\"rssi\":" + String(rssi) + ",";
-  jsonPayload += "\"battery_v\":" + String(battery_v, 2);
+  jsonPayload += "\"rssi\":" + String(rssi);
   jsonPayload += "}";
 
   Serial.print("[TX -> Cloud] Enviando trama JSON: ");
@@ -142,6 +130,7 @@ void loop() {
   HTTPClient http;
 
   http.begin(client, SERVER_URL);
+  http.setTimeout(5000);
   http.addHeader("Content-Type", "application/json");
 
   int httpResponseCode = http.POST(jsonPayload);
