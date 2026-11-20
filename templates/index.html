@@ -3,283 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telemetría IoT en la Nube | Sistemas de Comunicación II (2026-II)</title>
+    <meta name="theme-color" content="#090d16">
+    <title>Monitoreo IoT | Sistemas de Comunicación II</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <header class="topbar">
         <div class="brand">
-            <div class="brand-icon">SC2</div>
+            <div class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+            </div>
             <div class="brand-text">
-                <h1>Sistema de Monitoreo IoT en Tiempo Real</h1>
-                <p>Sistemas de Comunicación II • Semestre 2026-II • Telemetría de Dispositivo Sensor</p>
+                <h1>Monitoreo IoT</h1>
+                <p>Sistemas de Comunicación II</p>
             </div>
         </div>
 
         <div class="topbar-actions">
             <div id="sseStatusPill" class="connection-pill disconnected">
                 <span class="pulse-dot"></span>
-                <span id="sseStatusText">Conectando SSE...</span>
+                <span id="sseStatusText">Conectando</span>
             </div>
 
-            <select id="deviceFilter" class="select-input" aria-label="Filtrar por nodo sensor" title="Filtrar por nodo sensor">
-                <option value="ALL">Todos los Nodos Sensores</option>
+            <select id="deviceFilter" class="select-input" aria-label="Filtrar nodo" title="Filtrar nodo">
+                <option value="ALL">Todos los nodos</option>
             </select>
 
-            <a href="/api/export/csv" class="btn" title="Descargar historial en CSV">
-                ⬇ Exportar CSV
+            <button type="button" class="btn btn-icon" onclick="refreshAllData()" title="Recargar datos" aria-label="Recargar datos">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+            </button>
+
+            <a href="/api/export/csv" class="btn btn-icon" title="Exportar CSV" aria-label="Exportar CSV">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
             </a>
+
+            <button type="button" class="btn btn-icon btn-danger" onclick="clearAllReadings()" title="Limpiar historial" aria-label="Limpiar historial">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/>
+                    <path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </button>
         </div>
     </header>
 
     <main class="container">
         <!-- Banner de Alerta Dinámico -->
         <div id="alertBanner" class="alert-banner" role="alert">
-            <div>
-                <strong id="alertTitle">Estado del Sistema:</strong>
-                <span id="alertMessage">Monitoreando variables ambientales...</span>
+            <div class="alert-left">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <strong id="alertTitle">Estado</strong>
+                <span id="alertMessage"></span>
             </div>
-            <span id="alertTime" style="font-size: 0.78rem; opacity: 0.85;"></span>
+            <span id="alertTime" class="alert-time"></span>
         </div>
 
-        <!-- Tarjetas de Indicadores Principales (KPIs) -->
+        <!-- Indicadores Principales (KPIs) -->
         <section class="kpi-grid">
-            <!-- Temperatura -->
             <div class="kpi-card temp">
                 <div class="kpi-header">
-                    <span class="kpi-title">Temperatura Ambiente</span>
+                    <span class="kpi-title">Temperatura</span>
                     <span id="badgeTemp" class="kpi-badge">DHT22</span>
                 </div>
                 <div class="kpi-value-row">
                     <span id="valTemp" class="kpi-value">--.-</span>
                     <span class="kpi-unit">°C</span>
                 </div>
-                <div class="kpi-meter">
-                    <div id="meterTemp" class="kpi-meter-fill" style="width: 0%; background: linear-gradient(90deg, #f97316, #ef4444);"></div>
-                </div>
                 <div class="kpi-footer">
-                    <span>Mín: <strong id="minTemp">--</strong>°C</span>
-                    <span>Prom: <strong id="avgTemp">--</strong>°C</span>
-                    <span>Máx: <strong id="maxTemp">--</strong>°C</span>
+                    <span>Mín <strong id="minTemp">--</strong></span>
+                    <span>Prom <strong id="avgTemp">--</strong></span>
+                    <span>Máx <strong id="maxTemp">--</strong></span>
                 </div>
             </div>
 
-            <!-- Humedad Relativa -->
             <div class="kpi-card hum">
                 <div class="kpi-header">
-                    <span class="kpi-title">Humedad Relativa</span>
-                    <span id="badgeHum" class="kpi-badge">HR %</span>
+                    <span class="kpi-title">Humedad</span>
+                    <span id="badgeHum" class="kpi-badge">HR</span>
                 </div>
                 <div class="kpi-value-row">
                     <span id="valHum" class="kpi-value">--.-</span>
                     <span class="kpi-unit">%</span>
                 </div>
-                <div class="kpi-meter">
-                    <div id="meterHum" class="kpi-meter-fill" style="width: 0%; background: linear-gradient(90deg, #06b6d4, #3b82f6);"></div>
-                </div>
                 <div class="kpi-footer">
-                    <span>Mín: <strong id="minHum">--</strong>%</span>
-                    <span>Prom: <strong id="avgHum">--</strong>%</span>
-                    <span>Máx: <strong id="maxHum">--</strong>%</span>
+                    <span>Mín <strong id="minHum">--</strong></span>
+                    <span>Prom <strong id="avgHum">--</strong></span>
+                    <span>Máx <strong id="maxHum">--</strong></span>
                 </div>
             </div>
 
-            <!-- Índice de Calor & Punto de Rocío -->
-            <div class="kpi-card hi">
-                <div class="kpi-header">
-                    <span class="kpi-title">Sensación Térmica (HI)</span>
-                    <span class="kpi-badge">NOAA</span>
-                </div>
-                <div class="kpi-value-row">
-                    <span id="valHI" class="kpi-value">--.-</span>
-                    <span class="kpi-unit">°C</span>
-                </div>
-                <div class="kpi-meter">
-                    <div id="meterHI" class="kpi-meter-fill" style="width: 0%; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
-                </div>
-                <div class="kpi-footer">
-                    <span>Punto de Rocío: <strong id="valDP">--.-</strong> °C</span>
-                    <span>Prom HI: <strong id="avgHI">--</strong> °C</span>
-                </div>
-            </div>
-
-            <!-- Potencia de Señal Inalámbrica RSSI -->
             <div class="kpi-card rssi">
                 <div class="kpi-header">
-                    <span class="kpi-title">Enlace Radio Wi-Fi (RSSI)</span>
-                    <span id="badgeRSSI" class="kpi-badge">802.11 b/g/n</span>
+                    <span class="kpi-title">Señal Wi-Fi</span>
+                    <span id="valRssiQuality" class="kpi-badge">--</span>
                 </div>
                 <div class="kpi-value-row">
                     <span id="valRSSI" class="kpi-value">--</span>
                     <span class="kpi-unit">dBm</span>
                 </div>
-                <div class="kpi-meter">
-                    <div id="meterRSSI" class="kpi-meter-fill" style="width: 0%; background: linear-gradient(90deg, #10b981, #059669);"></div>
-                </div>
                 <div class="kpi-footer">
-                    <span>Calidad: <strong id="valRssiQuality">--</strong></span>
-                    <span>Prom: <strong id="avgRSSI">--</strong> dBm</span>
+                    <span>Prom <strong id="avgRSSI">--</strong> dBm</span>
                 </div>
             </div>
 
-            <!-- Telemetría de Red & Estado -->
             <div class="kpi-card net">
                 <div class="kpi-header">
-                    <span class="kpi-title">Tráfico & Nodo Remoto</span>
-                    <span id="valStatusBadge" class="status-pill status-SIN_DATOS">SIN DATOS</span>
+                    <span class="kpi-title">Estado</span>
+                    <span id="valStatusBadge" class="status-pill status-SIN_DATOS">Sin datos</span>
                 </div>
                 <div class="kpi-value-row">
                     <span id="valPackets" class="kpi-value">0</span>
                     <span class="kpi-unit">tramas</span>
                 </div>
-                <div class="kpi-footer" style="flex-direction: column; gap: 0.25rem;">
-                    <span>Nodo: <strong id="valDevice">--</strong></span>
-                    <span>IP Cliente: <strong id="valClientIP">--</strong></span>
-                    <span>Última trama: <strong id="valLastSeen">--:--:--</strong></span>
+                <div class="kpi-footer kpi-meta-col">
+                    <span>Nodo <strong id="valDevice">--</strong></span>
+                    <span>IP <strong id="valClientIP">--</strong> • <strong id="valLastSeen">--:--</strong></span>
                 </div>
             </div>
         </section>
 
-        <!-- Gráficas en Tiempo Real -->
-        <section class="charts-grid">
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">
-                        📈 Serie Temporal en Tiempo Real: Temperatura (°C) vs Humedad Relativa (%)
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <label for="sampleLimit" style="font-size: 0.78rem; color: var(--text-secondary);">Ventana:</label>
-                        <select id="sampleLimit" class="select-input" onchange="refreshAllData()">
-                            <option value="25">Últimas 25 muestras</option>
-                            <option value="50" selected>Últimas 50 muestras</option>
-                            <option value="100">Últimas 100 muestras</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="mainTelemetryChart"></canvas>
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">
-                        📡 Índice de Calor (°C) y Punto de Rocío (°C)
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="secondaryChart"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- Configuración de Umbrales e Inspector de Última Trama Real -->
-        <section class="lab-grid">
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">
-                        ⚙️ Configuración de Umbrales de Alerta y Base de Datos
-                    </div>
-                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Persistencia SQLite</span>
-                </div>
-
-                <form id="thresholdsForm" onsubmit="saveThresholds(event)">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="inpTempMinWarn">Temp. Mín. Alerta (°C)</label>
-                            <input type="number" id="inpTempMinWarn" class="text-input" step="0.1" min="-50" max="99" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="inpTempMaxWarn">Temp. Máx. Alerta (°C)</label>
-                            <input type="number" id="inpTempMaxWarn" class="text-input" step="0.1" min="-49" max="99" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="inpTempMaxCrit">Temp. Crítica (°C)</label>
-                            <input type="number" id="inpTempMaxCrit" class="text-input" step="0.1" min="-48" max="100" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="inpHumMinWarn">Hum. Mín. Alerta (%)</label>
-                            <input type="number" id="inpHumMinWarn" class="text-input" step="0.5" min="0" max="98" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="inpHumMaxWarn">Hum. Máx. Alerta (%)</label>
-                            <input type="number" id="inpHumMaxWarn" class="text-input" step="0.5" min="1" max="99" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="inpHumMaxCrit">Hum. Crítica (%)</label>
-                            <input type="number" id="inpHumMaxCrit" class="text-input" step="0.5" min="2" max="100" required>
-                        </div>
-                    </div>
-
-                    <div class="preset-row" style="align-items: center; justify-content: space-between;">
-                        <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
-                            <button type="submit" class="btn btn-primary">💾 Guardar Umbrales</button>
-                            <span id="thresholdsFeedback" class="feedback-msg" aria-live="polite"></span>
-                        </div>
-                        <button type="button" class="btn btn-danger" onclick="clearAllReadings()">🗑 Limpiar BD</button>
-                    </div>
-                </form>
-
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 1.05rem 0;">
-
-                <div style="font-size: 0.78rem; color: var(--text-secondary);">
-                    <strong>Umbrales Activos:</strong>
-                    Alerta Temp: <span id="lblWarnTemp">--</span>°C |
-                    Crítico Temp: <span id="lblCritTemp">--</span>°C |
-                    Alerta Hum: <span id="lblWarnHum">--</span>%
-                </div>
-            </div>
-
-            <!-- Inspector de Última Trama Real Recibida -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">
-                        🔍 Inspector de Última Trama Real Recibida (HTTP POST / JSON)
-                    </div>
-                    <span id="inspectorMeta" class="kpi-badge">Esperando datos...</span>
-                </div>
-
-                <div class="endpoint-bar">
-                    <span>Endpoint: <code id="endpointUrl">/api/readings</code></span>
-                    <button type="button" id="btnCopyEndpoint" class="btn btn-sm" onclick="copyEndpointUrl()">📋 Copiar URL</button>
-                </div>
-
-                <pre id="protocolInspector" class="code-box">Esperando la primera trama real del dispositivo sensor...</pre>
-            </div>
-        </section>
-
-        <!-- Tabla de Registros Históricos en Vivo -->
-        <section class="panel">
+        <!-- Gráfica de Telemetría Suave a Ancho Completo -->
+        <section class="panel chart-panel">
             <div class="panel-header">
-                <div class="panel-title">
-                    📋 Registro Histórico de Telemetría Recibida (SQLite)
-                </div>
-                <span style="font-size: 0.78rem; color: var(--text-secondary);">
-                    Actualización instantánea vía Server-Sent Events (SSE)
-                </span>
+                <h2 class="panel-title">Temperatura y humedad</h2>
+                <select id="sampleLimit" class="select-input select-compact" aria-label="Cantidad de muestras" onchange="refreshAllData()">
+                    <option value="25">25 muestras</option>
+                    <option value="50" selected>50 muestras</option>
+                    <option value="100">100 muestras</option>
+                </select>
+            </div>
+            <div class="chart-container">
+                <canvas id="mainTelemetryChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Historial en Vivo -->
+        <section class="panel history-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Historial</h2>
+                <span class="panel-meta">Tiempo real</span>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
                         <tr>
-                            <th># ID</th>
-                            <th>Fecha / Hora</th>
-                            <th>Nodo Sensor</th>
-                            <th>IP Origen</th>
-                            <th>Temperatura</th>
-                            <th>Humedad Rel.</th>
-                            <th>Índice Calor</th>
-                            <th>Punto Rocío</th>
-                            <th>RSSI Wi-Fi</th>
+                            <th>#</th>
+                            <th>Hora</th>
+                            <th>Nodo</th>
+                            <th>IP</th>
+                            <th>Temp</th>
+                            <th>Hum</th>
+                            <th>RSSI</th>
                             <th>Estado</th>
                         </tr>
                     </thead>
                     <tbody id="readingsTableBody">
-                        <tr>
-                            <td colspan="10" style="text-align: center; color: var(--text-secondary);">
-                                Cargando registros de telemetría...
-                            </td>
+                        <tr class="is-empty">
+                            <td colspan="8" class="table-empty">Sin lecturas registradas.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -288,7 +185,7 @@
     </main>
 
     <footer class="footer">
-        Proyecto Final Sistemas de Comunicación II • Semestre 2026-II • Servidor Web de Telemetría IoT sobre IP Pública (Ubuntu / Nginx / Gunicorn / Flask)
+        Sistemas de Comunicación II
     </footer>
 
     <script src="/static/js/dashboard.js"></script>

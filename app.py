@@ -9,6 +9,7 @@ import sqlite3
 import threading
 from datetime import datetime
 from flask import Flask, Response, jsonify, render_template, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -16,6 +17,14 @@ os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "telemetry.db")
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
 
 # Clave API opcional (si se define SISCOM_API_KEY, se valida mediante cabecera X-API-Key o campo api_key)
 EXPECTED_API_KEY = os.environ.get("SISCOM_API_KEY", "")

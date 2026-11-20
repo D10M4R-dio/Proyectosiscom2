@@ -11,6 +11,7 @@ Proyecto final para monitoreo en tiempo real de **Temperatura (°C)**, **Humedad
 * [`static/css/styles.css`](./static/css/styles.css) y [`static/js/dashboard.js`](./static/js/dashboard.js): Estilos y lógica en vivo del Dashboard mediante `EventSource` (SSE).
 * [`firmware/esp32_dht_monitor/esp32_dht_monitor.ino`](./firmware/esp32_dht_monitor/esp32_dht_monitor.ino): Código para Arduino IDE compatible con ESP32 y ESP8266 usando el sensor DHT22 o DHT11.
 * [`deploy/setup_vps.sh`](./deploy/setup_vps.sh): Script automatizado que instala y configura Nginx (puerto 80 en IP pública), Gunicorn, Systemd y Firewall UFW en un servidor Ubuntu/Debian (DigitalOcean, Google Cloud, Azure, AWS).
+* [`deploy/enable_https.sh`](./deploy/enable_https.sh): Script para asociar un dominio en letras y activar certificado TLS/HTTPS gratuito con Let's Encrypt.
 * [`Dockerfile`](./Dockerfile) y [`docker-compose.yml`](./docker-compose.yml): Alternativa de despliegue en contenedores Docker.
 * [`iniciar_local.bat`](./iniciar_local.bat): Ejecutable de un clic para iniciar el servidor en Windows.
 
