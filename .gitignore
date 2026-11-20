@@ -16,3 +16,7 @@ data/*.db-shm
 # Herramientas locales de prueba
 simulador_esp32.py
 
+# Directorio temporal de migración
+Proyectosiscom2/
+
+
