@@ -14,6 +14,7 @@
 \usetikzlibrary{babel, arrows.meta, positioning, shapes.geometric, decorations.pathreplacing, calc, backgrounds, fit}
 
 % Configuracion estetica para listados de codigo y tramas JSON
+\renewcommand{\lstlistingname}{Código}
 \lstset{
     backgroundcolor=\color{black!4},
     basicstyle=\ttfamily\scriptsize,
@@ -21,6 +22,11 @@
     framerule=0.5pt,
     rulecolor=\color{black!30},
     breaklines=true,
+    numbers=left,
+    numberstyle=\tiny\color{black!45},
+    numbersep=4pt,
+    xleftmargin=12pt,
+    framexleftmargin=12pt,
     captionpos=b,
     abovecaptionskip=6pt,
     belowcaptionskip=6pt,
@@ -32,7 +38,7 @@
 \title{Sistema de Monitoreo IoT vía Web sobre Dirección IP Pública: \\ Arquitectura Telemática, Despliegue en la Nube y Procesamiento en Tiempo Real}
 
 \author{
-    \IEEEauthorblockN{Diomar Castro y Miguel Ángel Rodríguez}
+    \IEEEauthorblockN{D. Castro y M. Rodríguez}
     \IEEEauthorblockA{
         \textit{Facultad de Ciencias Básicas e Ingeniería, Universidad de los Llanos} \\
         \textit{Villavicencio, Meta, Colombia} \\
@@ -125,37 +131,129 @@ con ventana de 5 puntos ($M=2$), vector de ponderación $\mathbf{w} = [1, \, 3, 
 \begin{figure*}[t]
 \centering
 \begin{tikzpicture}[
-    >=Latex, thick,
-    block/.style={draw, rounded corners=3pt, fill=blue!6, minimum width=2.4cm, minimum height=1.1cm, align=center, font=\footnotesize},
-    cloudblock/.style={draw, rounded corners=6pt, fill=orange!8, minimum width=2.5cm, minimum height=1.1cm, align=center, font=\footnotesize},
-    clientblock/.style={draw, rounded corners=3pt, fill=green!8, minimum width=2.4cm, minimum height=1.1cm, align=center, font=\footnotesize},
-    arrowlabel/.style={font=\scriptsize, align=center}
+    >=Latex,
+    font=\sffamily,
+    card/.style={
+        rectangle, rounded corners=4pt, line width=0.7pt,
+        align=center, inner sep=4pt
+    },
+    sensor_box/.style={
+        card, fill=blue!6, draw=blue!55!black,
+        text width=2.45cm, minimum height=2.1cm
+    },
+    esp_box/.style={
+        card, fill=teal!7, draw=teal!60!black,
+        text width=2.55cm, minimum height=2.1cm
+    },
+    wan_box/.style={
+        card, fill=orange!8, draw=orange!75!black,
+        text width=2.5cm, minimum height=2.1cm
+    },
+    vps_box/.style={
+        card, fill=purple!7, draw=purple!65!black,
+        text width=2.75cm, minimum height=2.1cm
+    },
+    client_box/.style={
+        card, fill=green!8, draw=green!60!black,
+        text width=2.55cm, minimum height=2.1cm
+    },
+    db_box/.style={
+        cylinder, shape border rotate=90, aspect=0.25,
+        line width=0.7pt, fill=purple!14, draw=purple!70!black,
+        align=center, text width=2.4cm, inner sep=3pt,
+        font=\sffamily
+    },
+    conn_arrow/.style={
+        -{Latex[length=4.5pt, width=3.2pt]}, line width=1.0pt, color=black!75
+    },
+    bidir_arrow/.style={
+        {Latex[length=4.5pt, width=3.2pt]}-{Latex[length=4.5pt, width=3.2pt]},
+        line width=0.9pt, color=purple!70!black
+    },
+    lbl_top/.style={
+        font=\scriptsize\bfseries, align=center, text=black!85, yshift=2pt
+    },
+    lbl_bot/.style={
+        font=\tiny, align=center, text=black!65, yshift=-2pt
+    }
 ]
 
-    % Bloque 1: Entorno y Sensor
-    \node[block] (sensor) {\textbf{Entorno Físico}\\\scriptsize Sensor DHT22\\\scriptsize(Temp y Humedad)};
-    
-    % Bloque 2: ESP32
-    \node[block, right=0.8cm of sensor] (esp32) {\textbf{Nodo ESP32}\\\scriptsize GPIO 4 / Conversión\\\scriptsize Pila Wi-Fi IEEE 802.11};
-    
-    % Bloque 3: Internet / IP Publica
-    \node[cloudblock, right=0.9cm of esp32] (wan) {\textbf{Red WAN / Internet}\\\scriptsize Dirección IPv4 Pública\\\texttt{57.156.57.129:80}};
-    
-    % Bloque 4: Nginx + Gunicorn
-    \node[cloudblock, right=0.9cm of wan] (vps) {\textbf{Servidor Cloud (VPS)}\\\scriptsize Nginx (Proxy Inverso)\\\scriptsize Gunicorn + Flask WSGI};
-    
-    % Bloque 5: SQLite
-    \node[block, fill=purple!8, above=0.7cm of vps] (db) {\textbf{Base de Datos}\\\scriptsize SQLite3\\\texttt{data/telemetry.db}};
-    
-    % Bloque 6: Cliente Web
-    \node[clientblock, right=0.9cm of vps] (client) {\textbf{Navegador Web}\\\scriptsize Dashboard Minimalista\\\scriptsize Chart.js + SSE};
+    \def\hgap{1.2cm}
+
+    % Bloque 1: Entorno Físico y Sensor
+    \node[sensor_box] (sensor) {
+        \textbf{Entorno Físico}\\[1pt]
+        {\footnotesize \textbf{Sensor DHT22}}\\
+        {\tiny (AM2302 / Captura $T, RH$)}\\[3pt]
+        {\tiny Pull-up \SI{10}{\kilo\ohm} a \SI{3.3}{\volt}}\\
+        {\tiny Bus 1-Wire temporizado}
+    };
+
+    % Bloque 2: Nodo ESP32
+    \node[esp_box, right=\hgap of sensor] (esp32) {
+        \textbf{Nodo Borde ESP32}\\[1pt]
+        {\footnotesize \textbf{ESP32-WROOM-32}}\\
+        {\tiny FreeRTOS ($T_s = \SI{5000}{\milli\second}$)}\\[3pt]
+        {\tiny Cómputo $HI$ y $T_d$ / RSSI}\\
+        {\tiny Wi-Fi 802.11 + HTTPClient}
+    };
+
+    % Bloque 3: Red WAN / Internet
+    \node[wan_box, right=\hgap of esp32] (wan) {
+        \textbf{Red WAN / Internet}\\[1pt]
+        {\footnotesize \textbf{Enrutamiento Global}}\\
+        {\tiny Router Wi-Fi / NAT LAN}\\[3pt]
+        {\tiny \textbf{IPv4 Pública Estática:}}\\
+        {\scriptsize \texttt{57.156.57.129:80}}
+    };
+
+    % Bloque 4: Servidor Cloud (VPS)
+    \node[vps_box, right=\hgap of wan] (vps) {
+        \textbf{Servidor Cloud (VPS)}\\[1pt]
+        {\footnotesize \textbf{Ubuntu 22.04 LTS (Azure)}}\\[2pt]
+        {\tiny \textbf{Nginx:} Reverse Proxy}\\
+        {\tiny \texttt{proxy\_buffering off;}}\\[2pt]
+        {\tiny \textbf{Gunicorn + Flask WSGI}}\\
+        {\tiny 8 hilos concurrentes}
+    };
+
+    % Bloque 5: Cliente Web
+    \node[client_box, right=\hgap of vps] (client) {
+        \textbf{Cliente Web (UI)}\\[1pt]
+        {\footnotesize \textbf{Dashboard Minimalista}}\\[2pt]
+        {\tiny SSE \texttt{EventSource}}\\
+        {\tiny Filtro FIR Gaussiano (5 pt)}\\[2pt]
+        {\tiny Gráficas en vivo (Chart.js)}\\
+        {\tiny Monitoreo móvil/desktop}
+    };
+
+    % Bloque Superior: Base de Datos SQLite (sobre el VPS)
+    \node[db_box, above=0.75cm of vps] (db) {
+        \textbf{Base de Datos}\\[1pt]
+        {\footnotesize \textbf{SQLite3}}\\
+        {\tiny \texttt{data/telemetry.db}}\\
+        {\tiny Inserción transaccional ACID}
+    };
 
     % Conexiones
-    \draw[->] (sensor) -- node[above, arrowlabel] {1-Wire\\(GPIO 4)} (esp32);
-    \draw[->] (esp32) -- node[above, arrowlabel] {Wi-Fi Link\\POST JSON} (wan);
-    \draw[->] (wan) -- node[above, arrowlabel] {TCP Port 80\\Inbound} (vps);
-    \draw[<->] (vps) -- node[right, arrowlabel] {Lectura /\\Escritura} (db);
-    \draw[->] (vps) -- node[above, arrowlabel] {Push SSE\\Stream} (client);
+    \draw[conn_arrow] (sensor.east) -- (esp32.west)
+        node[midway, lbl_top] {1-Wire}
+        node[midway, lbl_bot] {(GPIO 4)};
+
+    \draw[conn_arrow] (esp32.east) -- (wan.west)
+        node[midway, lbl_top] {Wi-Fi Link}
+        node[midway, lbl_bot] {POST JSON};
+
+    \draw[conn_arrow] (wan.east) -- (vps.west)
+        node[midway, lbl_top] {TCP :80}
+        node[midway, lbl_bot] {HTTP Inbound};
+
+    \draw[conn_arrow] (vps.east) -- (client.west)
+        node[midway, lbl_top] {Push SSE}
+        node[midway, lbl_bot] {Stream / 200 OK};
+
+    \draw[bidir_arrow] (vps.north) -- (db.south)
+        node[midway, right=3pt, font=\tiny, align=left] {Lectura /\\Escritura ACID};
 
 \end{tikzpicture}
 \caption{Arquitectura telemática integral del sistema de monitoreo IoT sobre dirección IP pública.}
@@ -190,31 +288,128 @@ El firmware en Arduino C++ opera mediante un temporizador no bloqueante basado e
 % FIGURA TIKZ 2: DIAGRAMA DE SECUENCIA DE PROTOCOLOS
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[>=Latex, thick, font=\scriptsize]
-    % Lineas verticales
-    \node (esp) at (0, 0) [draw, fill=blue!10, rounded corners=2pt, minimum width=1.5cm] {ESP32};
-    \node (srv) at (3.2, 0) [draw, fill=orange!10, rounded corners=2pt, minimum width=1.5cm] {Nginx / Flask};
-    \node (cli) at (6.4, 0) [draw, fill=green!10, rounded corners=2pt, minimum width=1.5cm] {Cliente Web};
-    
-    \draw[dashed, gray] (esp.south) -- ++(0, -5.2);
-    \draw[dashed, gray] (srv.south) -- ++(0, -5.2);
-    \draw[dashed, gray] (cli.south) -- ++(0, -5.2);
-    
-    % Conexión SSE del cliente
-    \draw[->, green!60!black] ([yshift=-0.6cm]cli.south) -- node[above, sloped] {GET /api/stream (SSE)} ([yshift=-1.0cm]srv.south);
-    \draw[->, dashed, green!60!black] ([yshift=-1.2cm]srv.south) -- node[above, sloped] {200 OK (Keep-Alive)} ([yshift=-1.6cm]cli.south);
-    
-    % Handshake TCP ESP32
-    \draw[->, blue!70!black] ([yshift=-2.0cm]esp.south) -- node[above, sloped] {TCP SYN [Port 80]} ([yshift=-2.3cm]srv.south);
-    \draw[<-, blue!70!black] ([yshift=-2.6cm]esp.south) -- node[above, sloped] {TCP SYN-ACK} ([yshift=-2.3cm]srv.south);
-    \draw[->, blue!70!black] ([yshift=-2.9cm]esp.south) -- node[above, sloped] {TCP ACK} ([yshift=-3.2cm]srv.south);
-    
-    % Transmision HTTP POST
-    \draw[->, black, very thick] ([yshift=-3.5cm]esp.south) -- node[above, sloped] {\textbf{POST} /api/readings (JSON)} ([yshift=-3.8cm]srv.south);
-    \draw[<-, black] ([yshift=-4.2cm]esp.south) -- node[above, sloped] {HTTP 201 Created} ([yshift=-3.9cm]srv.south);
-    
-    % Push SSE al cliente
-    \draw[->, purple!80!black, very thick] ([yshift=-4.3cm]srv.south) -- node[above, sloped] {\textbf{Push SSE}: event: new\_reading} ([yshift=-4.7cm]cli.south);
+\begin{tikzpicture}[>=Latex, font=\scriptsize]
+    % Estilos de participantes y mensajes
+    \tikzset{
+        participant/.style={
+            draw,
+            rounded corners=2pt,
+            align=center,
+            inner sep=3.5pt,
+            font=\scriptsize
+        },
+        lifeline/.style={
+            dashed,
+            color=gray!60,
+            line width=0.6pt
+        },
+        actbox/.style={
+            draw=orange!80!black,
+            fill=orange!15,
+            line width=0.5pt
+        },
+        msg/.style={
+            ->,
+            line width=0.7pt
+        },
+        resp/.style={
+            ->,
+            dashed,
+            line width=0.6pt
+        }
+    }
+
+    % 1. Coordenadas X fijas de las tres entidades (Ancho total diagramado <= 8.5 cm)
+    \coordinate (Xesp) at (0.95, 0);
+    \coordinate (Xsrv) at (4.25, 0);
+    \coordinate (Xcli) at (7.55, 0);
+
+    % 2. Nodos de cabecera de participantes
+    \node (node_esp) at (Xesp) [participant, fill=blue!8, draw=blue!70!black, text width=1.65cm] {%
+        \textbf{ESP32}\\[-1pt]\tiny(Nodo Sensor)};
+    \node (node_srv) at (Xsrv) [participant, fill=orange!10, draw=orange!80!black, text width=2.25cm] {%
+        \textbf{Servidor Cloud}\\[-1pt]\tiny(Nginx / Flask)};
+    \node (node_cli) at (Xcli) [participant, fill=teal!8, draw=teal!70!black, text width=1.75cm] {%
+        \textbf{Cliente Web}\\[-1pt]\tiny(Navegador / UI)};
+
+    % Puntos de anclaje inferior de las líneas de vida
+    \coordinate (esp_bot) at (Xesp |- 0, -6.35);
+    \coordinate (srv_bot) at (Xsrv |- 0, -6.35);
+    \coordinate (cli_bot) at (Xcli |- 0, -6.35);
+
+    % Dibujo de líneas de vida
+    \draw[lifeline] (node_esp.south) -- (esp_bot);
+    \draw[lifeline] (node_srv.south) -- (srv_bot);
+    \draw[lifeline] (node_cli.south) -- (cli_bot);
+
+    % =========================================================================
+    % FASE 1: Conexión y Suscripción SSE (Cliente Web <-> Servidor Cloud)
+    % =========================================================================
+    \coordinate (c1) at (Xcli |- 0, -0.75);
+    \coordinate (s1) at (Xsrv |- 0, -1.05);
+    \draw[msg, color=teal!70!black] (c1) -- 
+        node[above, midway] {\texttt{GET /api/stream}}
+        (s1);
+
+    \coordinate (s2) at (Xsrv |- 0, -1.45);
+    \coordinate (c2) at (Xcli |- 0, -1.75);
+    \draw[resp, color=teal!70!black] (s2) -- 
+        node[above, midway] {\texttt{200 OK} \tiny(Keep-Alive)}
+        node[below, midway, font=\tiny\ttfamily, text=teal!80!black] {text/event-stream}
+        (c2);
+
+    % =========================================================================
+    % FASE 2: Handshake TCP de 3 Vías (ESP32 <-> Servidor Cloud)
+    % =========================================================================
+    \coordinate (e3) at (Xesp |- 0, -2.25);
+    \coordinate (s3) at (Xsrv |- 0, -2.55);
+    \draw[msg, color=blue!70!black] (e3) -- 
+        node[above, midway] {TCP \texttt{SYN} [Puerto 80]}
+        (s3);
+
+    \coordinate (s4) at (Xsrv |- 0, -2.85);
+    \coordinate (e4) at (Xesp |- 0, -3.15);
+    \draw[msg, color=blue!70!black] (s4) -- 
+        node[above, midway] {TCP \texttt{SYN-ACK}}
+        (e4);
+
+    \coordinate (e5) at (Xesp |- 0, -3.45);
+    \coordinate (s5) at (Xsrv |- 0, -3.75);
+    \draw[msg, color=blue!70!black] (e5) -- 
+        node[above, midway] {TCP \texttt{ACK}}
+        (s5);
+
+    % =========================================================================
+    % FASE 3: Transmisión HTTP POST de Telemetría (ESP32 -> Servidor Cloud)
+    % =========================================================================
+    \coordinate (e6) at (Xesp |- 0, -4.20);
+    \coordinate (s6) at (Xsrv |- 0, -4.50);
+    \draw[msg, very thick, color=black] (e6) -- 
+        node[above, midway] {\textbf{POST} \texttt{/api/readings}}
+        node[below, midway, font=\tiny, text=black!70] {(Telemetría JSON)}
+        (s6);
+
+    % Barra de procesamiento y persistencia en el Servidor (de s6 a salida de respuestas)
+    \draw[actbox] ($(Xsrv) + (-0.07, -4.50)$) rectangle ($(Xsrv) + (0.07, -5.55)$);
+    \node[anchor=west, font=\tiny, text=orange!85!black] at ($(Xsrv) + (0.12, -4.80)$) {%
+        Persistencia SQLite};
+
+    % Respuesta HTTP 201 Created al ESP32
+    \coordinate (s7) at (Xsrv |- 0, -5.20);
+    \coordinate (e7) at (Xesp |- 0, -5.50);
+    \draw[resp, thick, color=black] (s7) -- 
+        node[above, midway] {HTTP \texttt{201 Created}}
+        (e7);
+
+    % =========================================================================
+    % FASE 4: Notificación Push SSE en Tiempo Real (Servidor Cloud -> Cliente Web)
+    % =========================================================================
+    \coordinate (s8) at (Xsrv |- 0, -5.50);
+    \coordinate (c8) at (Xcli |- 0, -5.80);
+    \draw[msg, very thick, color=purple!80!black] (s8) -- 
+        node[above, midway] {\textbf{Push SSE}}
+        node[below, midway, font=\tiny\ttfamily, text=purple!70!black] {event: new\_reading}
+        (c8);
 
 \end{tikzpicture}
 \caption{Diagrama de secuencia temporal de la transacción telemática.}
