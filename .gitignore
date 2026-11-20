@@ -16,7 +16,16 @@ data/*.db-shm
 # Herramientas locales de prueba
 simulador_esp32.py
 
+# Archivos auxiliares de compilación LaTeX
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+
 # Directorio temporal de migración
 Proyectosiscom2/
+
 
 
