@@ -13,6 +13,52 @@
 \usepackage{tikz}
 \usetikzlibrary{babel, arrows.meta, positioning, shapes.geometric, decorations.pathreplacing, calc, backgrounds, fit}
 
+% Parche de compatibilidad IEEEtran + listings para caption con margenes calibrados
+\makeatletter
+\def\lst@MakeCaption#1{%
+  \lst@ifdisplaystyle
+    \ifx #1t \allowbreak%
+        \ifx\lst@@caption\@empty\expandafter\lst@HRefStepCounter \else
+                                \expandafter\refstepcounter
+        \fi {lstlisting}%
+        \ifx\lst@label\@empty\else \label{\lst@label}\fi
+        \let\lst@arg\lst@intname \lst@ReplaceIn\lst@arg\lst@filenamerpl
+        \global\let\lst@name\lst@arg \global\let\lstname\lst@name
+        \lst@ifnolol\else
+            \ifx\lst@@caption\@empty
+                \ifx\lst@caption\@empty
+                    \ifx\lst@intname\@empty \else \def\lst@temp{ }%
+                    \ifx\lst@intname\lst@temp \else
+                        \addcontentsline{\ext@lstlisting}{lstlisting}\lst@name
+                    \fi\fi
+                \fi
+            \else
+                \addcontentsline{\ext@lstlisting}{lstlisting}%
+                    {\protect\numberline{\thelstlisting}\lst@@caption}%
+            \fi
+        \fi
+    \fi
+    \ifx\lst@caption\@empty\else
+        \lst@IfSubstring #1\lst@captionpos
+            {\begingroup \let\@@vskip\vskip
+             \def\vskip{\afterassignment\lst@vskip \@tempskipa}%
+             \def\lst@vskip{\nobreak\@@vskip\@tempskipa\nobreak}%
+             \par\@parboxrestore\normalsize\normalfont
+             \hsize=\linewidth
+             \advance\hsize by -\lst@xleftmargin
+             \advance\hsize by -\lst@xrightmargin
+             \ifx\lst@title\@empty
+                 \lst@makecaption\fnum@lstlisting{%
+                   \ignorespaces \lst@caption}
+             \else
+                 \lst@maketitle\lst@title
+             \fi
+             \ifx #1b\allowbreak \fi
+             \endgroup}{}%
+    \fi
+  \fi}
+\makeatother
+
 % Configuracion estetica para listados de codigo y tramas JSON
 \renewcommand{\lstlistingname}{Código}
 \lstset{
@@ -21,13 +67,16 @@
     frame=single,
     framerule=0.4pt,
     rulecolor=\color{black!30},
+    framesep=3pt,
     breaklines=true,
     breakatwhitespace=false,
     numbers=left,
     numberstyle=\fontsize{5.5pt}{7pt}\selectfont\color{black!45},
     numbersep=4pt,
-    xleftmargin=0pt,
-    xrightmargin=0pt,
+    xleftmargin=12pt,
+    framexleftmargin=9pt,
+    xrightmargin=12pt,
+    framexrightmargin=9pt,
     captionpos=b,
     abovecaptionskip=4pt,
     belowcaptionskip=4pt,
@@ -92,10 +141,12 @@ La transmisión de datos se fundamenta en la arquitectura de cuatro capas del mo
 
 \subsection{Transmisión Push en Tiempo Real: Server-Sent Events (SSE)}
 Frente al sondeo periódico (\textit{polling}), cuya sobrecarga de cabeceras HTTP escala como $O(N)$ peticiones concurrentes, el sistema implementa la especificación W3C \textit{Server-Sent Events} (SSE) sobre \texttt{/api/stream}. El cliente establece una conexión persistente (\texttt{Accept: text/event-stream}) y el servidor empuja asíncronamente las lecturas entrantes (\autoref{lst:sse}):
+{\centering
 \begin{lstlisting}[caption={Estructura de transmisión SSE emitida hacia los clientes web.}, label={lst:sse}]
 event: new_reading
 data: {"temperature": 24.3, "humidity": 61.2, "status": "NORMAL", ...}
 \end{lstlisting}
+\par}
 Este esquema unidireccional abate la latencia de entrega a escala de milisegundos y suprime el tráfico redundante.
 
 \subsection{Modelado de Variables Termodinámicas Derivadas}
@@ -452,19 +503,19 @@ La arquitectura de software desacopla el proxy perimetral de la capa de cómputo
 
 \subsection{Etapa 4: Criptografía y Compatibilidad con Microcontroladores}
 Al incorporar cifrado TLS mediante Let's Encrypt / Certbot, se identificó que la librería \texttt{HTTPClient} del ESP32 no procesa redirecciones HTTP 301/308 hacia HTTPS durante peticiones POST JSON. Para solucionar esta incompatibilidad sin vulnerar la navegación web, se configuró un enrutamiento selectivo en Nginx (\autoref{lst:nginx_conf}):
-\noindent\begin{minipage}{\columnwidth}
-\begin{lstlisting}[caption={Regla en Nginx para bypass HTTP en nodo sensor y redirección HTTPS.}, label={lst:nginx_conf}]
+{\centering
+\begin{lstlisting}[caption={Regla en Nginx para bypass HTTP en sensor y redirección HTTPS.}, label={lst:nginx_conf}]
 server {
     listen 80 default_server;
-    # Bypass HTTP para telemetria ESP32
-    location = /api/readings {
+    location = /api/readings { # Bypass HTTP ESP32
         proxy_pass http://127.0.0.1:5000/api/readings;
     }
-    # Redireccion HTTPS para navegadores
-    location / { return 301 https://$host$request_uri; }
+    location / { # Redireccion HTTPS navegadores
+        return 301 https://$host$request_uri;
+    }
 }
 \end{lstlisting}
-\end{minipage}
+\par}
 
 \section{Resultados y Validación Experimental}
 
