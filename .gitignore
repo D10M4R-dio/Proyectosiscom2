@@ -13,6 +13,6 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 
-# Archivos de sistema
-.DS_Store
-Thumbs.db
+# Herramientas locales de prueba
+simulador_esp32.py
+
