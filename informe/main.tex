@@ -139,46 +139,46 @@ con ventana de 5 puntos ($M=2$), vector de ponderación $\mathbf{w} = [1, \, 3, 
     },
     sensor_box/.style={
         card, fill=blue!6, draw=blue!55!black,
-        text width=2.45cm, minimum height=2.1cm
+        text width=2.25cm, minimum height=2.1cm
     },
     esp_box/.style={
         card, fill=teal!7, draw=teal!60!black,
-        text width=2.55cm, minimum height=2.1cm
+        text width=2.35cm, minimum height=2.1cm
     },
     wan_box/.style={
         card, fill=orange!8, draw=orange!75!black,
-        text width=2.5cm, minimum height=2.1cm
+        text width=2.3cm, minimum height=2.1cm
     },
     vps_box/.style={
         card, fill=purple!7, draw=purple!65!black,
-        text width=2.75cm, minimum height=2.1cm
+        text width=2.5cm, minimum height=2.1cm
     },
     client_box/.style={
         card, fill=green!8, draw=green!60!black,
-        text width=2.55cm, minimum height=2.1cm
+        text width=2.35cm, minimum height=2.1cm
     },
     db_box/.style={
         cylinder, shape border rotate=90, aspect=0.25,
         line width=0.7pt, fill=purple!14, draw=purple!70!black,
-        align=center, text width=2.4cm, inner sep=3pt,
+        align=center, text width=2.3cm, inner sep=3pt,
         font=\sffamily
     },
     conn_arrow/.style={
-        -{Latex[length=4.5pt, width=3.2pt]}, line width=1.0pt, color=black!75
+        -{Latex[length=4.5pt, width=3.2pt]}, line width=0.9pt, color=black!75
     },
     bidir_arrow/.style={
         {Latex[length=4.5pt, width=3.2pt]}-{Latex[length=4.5pt, width=3.2pt]},
-        line width=0.9pt, color=purple!70!black
+        line width=0.85pt, color=purple!70!black
     },
     lbl_top/.style={
-        font=\scriptsize\bfseries, align=center, text=black!85, yshift=2pt
+        font=\scriptsize\bfseries, align=center, text=black!85, above=4pt
     },
     lbl_bot/.style={
-        font=\tiny, align=center, text=black!65, yshift=-2pt
+        font=\tiny, align=center, text=black!65, below=4pt
     }
 ]
 
-    \def\hgap{1.2cm}
+    \def\hgap{1.55cm}
 
     % Bloque 1: Entorno Físico y Sensor
     \node[sensor_box] (sensor) {
@@ -228,7 +228,7 @@ con ventana de 5 puntos ($M=2$), vector de ponderación $\mathbf{w} = [1, \, 3, 
     };
 
     % Bloque Superior: Base de Datos SQLite (sobre el VPS)
-    \node[db_box, above=0.75cm of vps] (db) {
+    \node[db_box, above=0.95cm of vps] (db) {
         \textbf{Base de Datos}\\[1pt]
         {\footnotesize \textbf{SQLite3}}\\
         {\tiny \texttt{data/telemetry.db}}\\
@@ -253,7 +253,7 @@ con ventana de 5 puntos ($M=2$), vector de ponderación $\mathbf{w} = [1, \, 3, 
         node[midway, lbl_bot] {Stream / 200 OK};
 
     \draw[bidir_arrow] (vps.north) -- (db.south)
-        node[midway, right=3pt, font=\tiny, align=left] {Lectura /\\Escritura ACID};
+        node[midway, right=6pt, font=\tiny, align=left] {Lectura /\\Escritura ACID};
 
 \end{tikzpicture}
 \caption{Arquitectura telemática integral del sistema de monitoreo IoT sobre dirección IP pública.}
